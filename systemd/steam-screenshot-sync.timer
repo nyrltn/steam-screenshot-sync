@@ -1,0 +1,10 @@
+[Unit]
+Description=Periodically sync Steam screenshots into the Pictures folder
+
+[Timer]
+OnStartupSec=2min
+OnUnitActiveSec=10min
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,9 @@
+[Unit]
+Description=Hard-link Steam screenshots into the Pictures folder
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/steam-screenshot-sync
+Nice=10
+IOSchedulingClass=idle
+# No ProtectHome=: the service reads and writes inside $HOME.
