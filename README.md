@@ -1,6 +1,9 @@
 # steam-screenshot-sync
 
-Steam stores screenshots under
+Steam handles screenshots in an annoying way.
+This repository tries to mitigate that by creating hard links into your user pictures directory, sorted by game.
+
+In detail, Steam stores screenshots under
 `~/.local/share/Steam/userdata/<account>/760/remote/<appid>/screenshots/`, named only by
 app id, and they are gone once that folder is cleared. This tool hard-links every screenshot
 into `~/Pictures/Steam/<Game Name>/`.
@@ -11,6 +14,9 @@ the tool copies instead.
 
 It runs once and exits. A systemd user timer runs it two minutes after login and every ten
 minutes after that.
+
+> **Note:** This project was written by Claude, Anthropic's AI model, using
+> [Claude Code](https://claude.com/claude-code).
 
 ## Install
 
@@ -44,16 +50,20 @@ journalctl --user -u steam-screenshot-sync      # see results
 |---|---|
 | `--steam-dir` | `$STEAM_DIR`, then `~/.local/share/Steam`, `~/.steam/steam`, `~/.steam/root`, the Flatpak path |
 | `--dest` | `XDG_PICTURES_DIR` from `~/.config/user-dirs.dirs` plus `/Steam`, else `~/Pictures/Steam` |
-| `--cache` | `~/.cache/steam-screenshot-sync/names.json` |
+| `--state-dir` | `$XDG_STATE_HOME/steam-screenshot-sync`, else `~/.local/state/steam-screenshot-sync` |
 | `--dry-run`, `-v`, `--version` | |
 
 ## Behaviour
 
-- Game names come from `appmanifest_*.acf` in every Steam library. They are cached, so an
-  uninstalled game keeps its folder name. An app with no known name gets a folder named after
-  its app id.
+- Game names come from `appmanifest_*.acf` in every Steam library. Non-Steam games added to
+  the library use the name shown there, read from `shortcuts.vdf`. Names are remembered, so an
+  uninstalled game or removed shortcut keeps its folder name. An app with no known name gets a
+  folder named after its app id.
 - A game folder is created only when the game has at least one screenshot. Thumbnails are
   skipped.
+- A screenshot you delete from `~/Pictures/Steam` stays deleted. Every synced screenshot is
+  recorded in `~/.local/state/steam-screenshot-sync/synced`. Remove a line, or the whole file,
+  to have those screenshots linked again on the next run.
 - Nothing is ever deleted or overwritten. A different file already sitting under the same
   name is reported as a conflict and left alone.
 - If a game is renamed in Steam, new screenshots go to a new folder and the old one stays.
