@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"steam-screenshot-sync/internal/linker"
+	"steam-screenshot-sync/internal/state"
 	"steam-screenshot-sync/internal/steam"
 )
 
@@ -31,7 +32,7 @@ func run() int {
 
 	steamDir := flag.String("steam-dir", "", "Steam root (default: $STEAM_DIR, then common locations)")
 	dest := flag.String("dest", filepath.Join(picturesDir(home), "Steam"), "destination root")
-	cache := flag.String("cache", filepath.Join(cacheDir(home), "steam-screenshot-sync", "names.json"), "appid-to-name cache file")
+	stateDir := flag.String("state-dir", filepath.Join(stateHome(home), "steam-screenshot-sync"), "where game names and the synced-files record are kept")
 	dryRun := flag.Bool("dry-run", false, "print what would be done without changing anything")
 	verbose := flag.Bool("v", false, "log every file")
 	showVersion := flag.Bool("version", false, "print version and exit")
@@ -63,17 +64,33 @@ func run() int {
 		warn(err)
 	}
 	fresh, errs := steam.AppNames(libs)
-	for _, e := range errs {
+	shortcuts, scErrs := steam.ShortcutNames(root)
+	for _, e := range append(errs, scErrs...) {
 		warn(e)
 	}
-	names, err := steam.LoadNameCache(*cache)
-	if err != nil {
-		warn(err) // a corrupt cache is rebuilt from manifests
+	for id, name := range shortcuts {
+		if _, ok := fresh[id]; !ok {
+			fresh[id] = name
+		}
 	}
-	if steam.MergeNames(names, fresh) && !*dryRun {
-		if err := steam.SaveNameCache(*cache, names); err != nil {
+
+	namesPath := filepath.Join(*stateDir, "names.json")
+	names, err := state.LoadNames(namesPath)
+	if err != nil {
+		warn(err) // a corrupt file is rebuilt from manifests and shortcuts
+	}
+	if state.MergeNames(names, fresh) && !*dryRun {
+		if err := state.SaveNames(namesPath, names); err != nil {
 			warn(err)
 		}
+	}
+
+	syncedPath := filepath.Join(*stateDir, "synced")
+	synced, err := state.LoadSynced(syncedPath)
+	if err != nil {
+		// Carrying on without the record would bring back deleted screenshots.
+		log.Printf("error: %v", err)
+		return 1
 	}
 
 	dirs, err := steam.ScreenshotDirs(root)
@@ -82,7 +99,7 @@ func run() int {
 		return 1
 	}
 
-	opt := linker.Options{DryRun: *dryRun}
+	opt := linker.Options{DryRun: *dryRun, Synced: synced}
 	if *verbose {
 		opt.Logf = log.Printf
 	}
@@ -92,12 +109,20 @@ func run() int {
 		if name == "" {
 			name = d.AppID
 		}
+		opt.KeyPrefix = d.AppID + "/"
 		st := linker.Sync(d.Path, filepath.Join(*dest, linker.SanitizeName(name)), opt)
 		for _, e := range st.Errors {
 			log.Printf("error: %v", e)
 			failed = true
 		}
 		total.Add(st)
+	}
+
+	if !*dryRun {
+		if err := synced.Save(syncedPath); err != nil {
+			log.Printf("error: %v", err)
+			failed = true
+		}
 	}
 
 	prefix := ""
@@ -111,8 +136,6 @@ func run() int {
 	return 0
 }
 
-// picturesDir returns XDG_PICTURES_DIR from the environment or
-// ~/.config/user-dirs.dirs, falling back to ~/Pictures.
 func picturesDir(home string) string {
 	if p := os.Getenv("XDG_PICTURES_DIR"); p != "" {
 		return p
@@ -127,7 +150,6 @@ func picturesDir(home string) string {
 	return filepath.Join(home, "Pictures")
 }
 
-// readUserDir reads one KEY="value" line from a user-dirs.dirs file.
 // Per the xdg-user-dirs format, $HOME is the only expansion allowed.
 func readUserDir(path, key, home string) string {
 	f, err := os.Open(path)
@@ -153,9 +175,9 @@ func readUserDir(path, key, home string) string {
 	return ""
 }
 
-func cacheDir(home string) string {
-	if c := os.Getenv("XDG_CACHE_HOME"); c != "" {
-		return c
+func stateHome(home string) string {
+	if s := os.Getenv("XDG_STATE_HOME"); s != "" {
+		return s
 	}
-	return filepath.Join(home, ".cache")
+	return filepath.Join(home, ".local", "state")
 }

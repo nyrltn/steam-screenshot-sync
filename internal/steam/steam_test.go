@@ -115,6 +115,12 @@ func TestShortcutGameID(t *testing.T) {
 	}
 }
 
+func TestShortcutShortID(t *testing.T) {
+	if got := ShortcutShortID(2405898600); got != "6756712" {
+		t.Errorf("ShortcutShortID = %s", got)
+	}
+}
+
 func TestShortcutNames(t *testing.T) {
 	root, _ := fakeSteam(t)
 	write(t, filepath.Join(root, "userdata", "1", "config", "shortcuts.vdf"),
@@ -123,7 +129,10 @@ func TestShortcutNames(t *testing.T) {
 	write(t, filepath.Join(root, "userdata", "1", "760", "remote", "14977444902793641984", "screenshots", "c.jpg"), "c")
 
 	names, errs := ShortcutNames(root)
-	if !reflect.DeepEqual(names, map[string]string{"14977444902793641984": "Arknights"}) {
+	if !reflect.DeepEqual(names, map[string]string{
+		"14977444902793641984": "Arknights",
+		"14324425":             "Arknights",
+	}) {
 		t.Errorf("ShortcutNames = %v", names)
 	}
 	if len(errs) != 1 {

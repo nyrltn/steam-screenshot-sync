@@ -127,6 +127,12 @@ func ShortcutGameID(appid uint32) string {
 	return strconv.FormatUint(uint64(appid)<<32|0x02000000, 10)
 }
 
+// Steam also stores shortcut screenshots under the appid's low 24 bits
+// (seen in 2026-10 with a shortcut whose 64-bit ID was used before).
+func ShortcutShortID(appid uint32) string {
+	return strconv.FormatUint(uint64(appid&0xFFFFFF), 10)
+}
+
 // Names of non-Steam games added to the library, keyed by screenshot
 // folder name. Unparseable files are reported in errs.
 func ShortcutNames(root string) (names map[string]string, errs []error) {
@@ -151,6 +157,7 @@ func ShortcutNames(root string) (names map[string]string, errs []error) {
 				continue
 			}
 			names[ShortcutGameID(uint32(appid))] = name
+			names[ShortcutShortID(uint32(appid))] = name
 		}
 	}
 	return names, errs
